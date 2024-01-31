@@ -1,6 +1,11 @@
 // main.js
 // Modules to control application life and create native browser window
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow } = require('electron');
+
+// try {
+//   require('electron-reloader')(module, {});
+// } catch (_) {}
+
 const path = require('path')
 const createWindow = () => {
     // Create the browser window.
@@ -17,7 +22,8 @@ const createWindow = () => {
         }
     })
     // 加载 index.html
-    mainWindow.loadFile('./dist/index.html')
+    // mainWindow.loadFile('./dist/index.html')
+    mainWindow.loadURL('http://127.0.0.1:5173/');
     // 打开开发工具
     // mainWindow.webContents.openDevTools()
 }
