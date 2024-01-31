@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "electron .",
-    "exe-build": "electron-builder"
+    "exe-build": "electron-builder --config electron.config.json"
   },
   "dependencies": {
     "vue": "^3.3.11"

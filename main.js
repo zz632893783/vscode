@@ -8,8 +8,12 @@ const createWindow = () => {
         width: 800,
         height: 600,
         webPreferences: {
+            asar: false,
         	nodeIntegration: true,
-            preload: path.join(__dirname, 'preload.js')
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: false,
+            // 确保开发者工具在窗口创建时打开
+            devTools: true
         }
     })
     // 加载 index.html
