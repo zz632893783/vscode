@@ -3,15 +3,21 @@
         <el-aside width="300px">
             <h4 class="project-title">文件目录</h4>
             <el-scrollbar class="menu">
-                <!-- <span :class="['menu-item', route.path === n.path && 'active']" v-for="(n, i) in menuList" :key="i" @click="jump(n)">{{ n.meta.menuName }}</span> -->
+                <el-tree :data="fileDirectory" :props="{ label: 'name' }" @node-click="clickNode">
+                    <template #default="{ node, data }">
+                        <div class="tree-node">
+                            <div class="prev"><i v-if="data.type === 'directory'" :class="['expand-btn', node.expanded && 'expand']"></i></div>
+                            <h4>{{ node.label }}</h4>
+                        </div>
+                    </template>
+                </el-tree>
                 <div class="import"><el-button type="primary" @click="importFile">导入</el-button></div>
-                <el-tree v-if="fileDirectory.length" :data="fileDirectory" :props="{ label: 'name' }" @node-click="clickNode" default-expand-all></el-tree>
             </el-scrollbar>
         </el-aside>
         <el-container class="root">
             <el-main>
                 <!-- <router-view></router-view> -->
-                <codemirror v-model="code" :autofocus="true" :tabSize="4" :extensions="extensions"/>
+                <codemirror v-model="code" :autofocus="true" :tabSize="4" :extensions="extensions" @keydown="codeKeydown"/>
             </el-main>
             <el-footer>
                 <!-- <codemirror v-model="cmd" :autofocus="true" :tabSize="0" :extensions="extensions" @input="cmdInput" @keydown.enter="cmdEnter"/> -->
@@ -37,6 +43,7 @@ import { xml } from '@codemirror/lang-xml';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
 const currentFile = ref(null);
+const currentDirectory  = ref(null);
 const codeTheme = EditorView.theme({
     // 输入的字体颜色
     '&': {
@@ -84,11 +91,22 @@ const importFile = () => ipcRenderer.send('open-folder');
 ipcRenderer.on('folder-content', (event, directory) => {
     fileDirectory.value.push(directory);
 });
+
+ipcRenderer.on('read-directory-folder-files', (event, folderFiles) => {
+    if (currentDirectory.value) {
+        currentDirectory.value.data.children = folderFiles;
+    }
+});
 // 单击选择左侧某个文件
 const clickNode = (file, node) => {
+    console.log(file, node);
     if (file.type === 'file') {
         ipcRenderer.send('read-file-content', file.fullPath);
         currentFile.value = node;
+    }
+    if (file.type === 'directory') {
+        ipcRenderer.send('read-directory-folder-files', file.fullPath);
+        currentDirectory.value = node;
     }
 };
 // 服务端读取文件内容后，由 read-file-content 接受
@@ -103,12 +121,6 @@ const cmdEnter = v => {
     cmd.value = '';
 };
 
-// const loadFolder = (node, resolve) => {
-//     if (node.level === 0) {
-//         return resolve([])
-//     }
-// };
-
 ipcRenderer.on('execute-command-reply', (...args) => {
     console.log(args);
 });
@@ -120,6 +132,16 @@ ipcRenderer.on('execute-command-stdout', (event, stdoutList) => {
     });
 });
 
+const codeKeydown = e => {
+    if (e.key === 's' && e.ctrlKey) {
+        ipcRenderer.send('save-file', currentFile.value?.data.fullPath, code.value);
+    }
+};
+
+const loadNode = (node, resolve) => {
+    console.log(node)
+    // resolve(node?.data[0]);
+};
 
 onMounted(() => {
     // ipcRenderer.send('execute-command', 'npm run dev');
@@ -141,8 +163,10 @@ onMounted(() => {
         grid-template-rows: minmax(0, 56px) minmax(0, 1fr);
         // background-color: rgba(238, 242, 254, 1);
         border-right: 1px solid red;
+        background-color: rgb(235, 236, 237);
         .import {
             text-align: center;
+            margin-top: 32px;
         }
         .project-title {
             align-self: center;
@@ -165,6 +189,13 @@ onMounted(() => {
                 }
             }
         }
+        .el-tree {
+            background-color: transparent;
+        }
+        :deep(.el-tree-node) {
+            background-color: transparent;
+            // background-color: red;
+        }
     }
     .el-footer {
         height: 140px;
@@ -183,6 +214,34 @@ onMounted(() => {
         textarea {
             padding: 12px;
         }
+    }
+    .tree-node {
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr);
+        .prev {
+            position: relative;
+            .expand-btn {
+                position: absolute;
+                width: 0;
+                height: 0;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                border-top: 4px solid transparent;
+                border-right: 0 solid;
+                border-bottom: 4px solid transparent;
+                border-left: 6px solid rgb(164, 165, 167);
+                &.expand {
+                    transform: translate(-50%, -50%) rotate(90deg);
+                }
+            }
+        }
+    }
+    .el-tree-node__expand-icon {
+        display: none !important;
+    }
+    :deep(.el-tree-node__expand-icon) {
+        display: none !important;
     }
 }
 </style>

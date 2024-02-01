@@ -138,6 +138,40 @@ const createWindow = () => {
             !err && event.reply('read-file-content', content);
         });
     });
+
+    ipcMain.on('read-directory-folder-files', async (event, folderPath) => {
+        const entries = await nodefs.promises.readdir(folderPath);
+        const fileDirectory = [];
+        const folderDirectory = [];
+        for (const entry of entries) {
+            const entryPath = path.join(folderPath, entry);
+            // 获取文件或文件夹的状态
+            const stats = await nodefs.promises.stat(entryPath);
+            stats.isDirectory() ? folderDirectory.push({
+                name: entry,
+                type: 'directory',
+                children: [],
+                fullPath: entryPath
+            }) : fileDirectory.push({
+                name: entry,
+                type: 'file',
+                fullPath: entryPath
+            });
+        }
+        fileDirectory.sort((x, y) => x.name < y.name ? -1 : (x.name > y.name ? 1 : 0));
+        folderDirectory.sort((x, y) => x.name < y.name ? -1 : (x.name > y.name ? 1 : 0));
+        event.reply('read-directory-folder-files', [...folderDirectory, ...fileDirectory]);
+    });
+
+    ipcMain.on('save-file', async (event, filePath, code) => {
+        nodefs.writeFile(filePath, code, (err) => {
+            if (err) {
+                console.error('写入文件时发生错误：', err);
+                return;
+            }
+            console.log('文件写入成功！');
+        });
+    });
 }
 // 这段程序将会在 Electron 结束初始化
 // 和创建浏览器窗口的时候调用
