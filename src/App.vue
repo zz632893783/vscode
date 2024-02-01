@@ -157,6 +157,7 @@ onMounted(() => {
 .root {
     width: 100vw;
     height: 100vh;
+    background-color: rgb(40, 41, 35);
     .el-aside {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
@@ -173,6 +174,7 @@ onMounted(() => {
             justify-self: center;
             font-size: 20px;
             font-weight: 600;
+            color: #333
         }
         .menu {
             :deep(.el-scrollbar__view) {
@@ -242,6 +244,11 @@ onMounted(() => {
     }
     :deep(.el-tree-node__expand-icon) {
         display: none !important;
+    }
+}
+:deep {
+    .cm-gutters, .cm-gutter, .cm-gutterElement, .cm-content, .cm-activeLine {
+        background-color: rgb(40, 41, 35);
     }
 }
 </style>

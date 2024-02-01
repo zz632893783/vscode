@@ -59,15 +59,15 @@ const createWindow = () => {
         }
     })
     // 加载 index.html
-    // mainWindow.loadFile('./dist/index.html');
-    mainWindow.loadURL('http://127.0.0.1:5173/');
+    mainWindow.loadFile('./dist/index.html');
+    // mainWindow.loadURL('http://127.0.0.1:5173/');
     // 打开开发工具
     // mainWindow.webContents.openDevTools()
 
     // 设置 IPC 监听器
     ipcMain.on('execute-command', async (event, command, path) => {
         let directory = path.replace(/(?<=(\/|\\))[^\\\/]+(\\|\/)?$/, '');
-        const files = await nodefs.promises.readdir(directory);
+        let files = await nodefs.promises.readdir(directory);
         while (!files.includes('package.json')) {
             if (directory === path) {
                 break;
