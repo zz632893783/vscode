@@ -5,7 +5,7 @@
             <el-scrollbar class="menu">
                 <!-- <span :class="['menu-item', route.path === n.path && 'active']" v-for="(n, i) in menuList" :key="i" @click="jump(n)">{{ n.meta.menuName }}</span> -->
                 <div class="import"><el-button type="primary" @click="importFile">导入</el-button></div>
-                <el-tree v-if="fileDirectory.length" :data="fileDirectory" :props="{ label: 'name' }" @node-click="clickNode"></el-tree>
+                <el-tree v-if="fileDirectory.length" :data="fileDirectory" :props="{ label: 'name' }" @node-click="clickNode" default-expand-all></el-tree>
             </el-scrollbar>
         </el-aside>
         <el-container class="root">
@@ -14,7 +14,11 @@
                 <codemirror v-model="code" :autofocus="true" :tabSize="4" :extensions="extensions"/>
             </el-main>
             <el-footer>
-                <codemirror v-model="cmd" :autofocus="true" :tabSize="0" :extensions="extensions" @input="cmdInput" @keydown.enter="cmdEnter"/>
+                <!-- <codemirror v-model="cmd" :autofocus="true" :tabSize="0" :extensions="extensions" @input="cmdInput" @keydown.enter="cmdEnter"/> -->
+                <div class="history-cmd">
+                    <div class="history-cmd-item" v-for="(n, i) in cmdHistory" :key="i" v-html="n"></div>
+                </div>
+                <textarea class="input-cmd" v-model="cmd" @keydown.enter="cmdEnter"></textarea>
             </el-footer>
         </el-container>
     </el-container>
@@ -32,7 +36,7 @@ import { xml } from '@codemirror/lang-xml';
 // import * as sqlFormatter from 'sql-formatter';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
-
+const currentFile = ref(null);
 const codeTheme = EditorView.theme({
     // 输入的字体颜色
     '&': {
@@ -73,12 +77,20 @@ const fileDirectory = ref([]);
 const code = ref('');
 // cmd 控制台
 const cmd = ref('');
+const cmdHistory = ref([]);
 // 导入文件
 const importFile = () => ipcRenderer.send('open-folder');
 // 服务端读取文件目录后，由 folder-content 接受
-ipcRenderer.on('folder-content', (event, files) => fileDirectory.value = files);
+ipcRenderer.on('folder-content', (event, directory) => {
+    fileDirectory.value.push(directory);
+});
 // 单击选择左侧某个文件
-const clickNode = (file) => file.type === 'file' && ipcRenderer.send('read-file-content', file.fullPath);
+const clickNode = (file, node) => {
+    if (file.type === 'file') {
+        ipcRenderer.send('read-file-content', file.fullPath);
+        currentFile.value = node;
+    }
+};
 // 服务端读取文件内容后，由 read-file-content 接受
 ipcRenderer.on('read-file-content', (event, fileContent) => (code.value = fileContent));
 
@@ -86,13 +98,28 @@ const cmdInput = v => {
     // console.log('cmdInput', v)
 };
 const cmdEnter = v => {
-    console.log(111);
-    ipcRenderer.send('execute-command', cmd.value);
+    ipcRenderer.send('execute-command', cmd.value, currentFile.value.data.fullPath);
+    cmdHistory.value.push(cmd.value);
+    cmd.value = '';
 };
+
+// const loadFolder = (node, resolve) => {
+//     if (node.level === 0) {
+//         return resolve([])
+//     }
+// };
 
 ipcRenderer.on('execute-command-reply', (...args) => {
     console.log(args);
 });
+
+ipcRenderer.on('execute-command-stdout', (event, stdoutList) => {
+    stdoutList.forEach(stdout => {
+        stdout = stdout.replace(/\x1B\[\d{1,2}[a-z]{1}/g, '');
+        cmdHistory.value.push(...stdout.split('\n').filter(n => !!n));
+    });
+});
+
 
 onMounted(() => {
     // ipcRenderer.send('execute-command', 'npm run dev');
@@ -101,7 +128,6 @@ onMounted(() => {
     //     mode: 'javascript', // 或者 'vue' 如果你想要编辑 Vue 代码
     //     theme: 'monokai'
     // });
-    console.log(123)
 });
 
 </script>
@@ -143,6 +169,20 @@ onMounted(() => {
     .el-footer {
         height: 140px;
         border-top: 1px solid red;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(40px, 1fr);
+        padding: 0;
+        .history-cmd {
+            overflow-x: hidden;
+            overflow-y: auto;
+            .history-cmd-item {
+                line-height: 24px;
+            }
+        }
+        textarea {
+            padding: 12px;
+        }
     }
 }
 </style>

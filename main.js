@@ -1,16 +1,16 @@
-// main.js
-// Modules to control application life and create native browser window
+const { spawn } = require('cross-spawn');
+
+// const process = spawn('npm', ['run', 'dev'], { cwd: 'F:/demo/vite-5.1.0' });
 const { app, BrowserWindow, ipcMain, dialog, fs } = require('electron');
 const nodefs = require('fs');
 const path = require('path');
+// 递归获取目录树结构
 const readDirectoryTree = async dirPath => {
     // 存储树形结构数据的数组
     const tree = [];
-
     try {
         // 读取目录内容
         const entries = await nodefs.promises.readdir(dirPath);
-        
         for (const entry of entries) {
             const entryPath = path.join(dirPath, entry);
             // 获取文件或文件夹的状态
@@ -37,7 +37,6 @@ const readDirectoryTree = async dirPath => {
     } catch (error) {
         console.error(`Error reading directory tree: ${error}`);
     }
-
     return tree;
 };
 // 遍历文件目录递归函数
@@ -66,22 +65,32 @@ const createWindow = () => {
     // mainWindow.webContents.openDevTools()
 
     // 设置 IPC 监听器
-    ipcMain.on('execute-command', (event, command) => {
-        const { exec } = require('child_process');
-        console.log(typeof exec, command)
-        exec(command, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`执行命令时出错: ${error}`);
-                return;
+    ipcMain.on('execute-command', async (event, command, path) => {
+        let directory = path.replace(/(?<=(\/|\\))[^\\\/]+(\\|\/)?$/, '');
+        const files = await nodefs.promises.readdir(directory);
+        while (!files.includes('package.json')) {
+            if (directory === path) {
+                break;
             }
-            console.log(`命令输出: ${stdout}`);
-            if (stderr) {
-                console.error(`命令错误输出: ${stderr}`);
-            }
-            // 将结果发送回渲染进程
-            event.reply('execute-command-reply', { stdout, stderr });
+            directory = path.replace(/(?<=(\/|\\))[^\\\/]+(\\|\/)?$/, '');
+            files = await nodefs.promises.readdir(directory);
+            path = directory;
+        }
+        const commandBlock = command.split(/ +/);
+        const projectProcess = spawn(commandBlock[0], commandBlock.slice(1), { cwd: directory });
+
+        projectProcess.stdout.on('data', (data) => {
+            console.log(`stdout: ${data}`)
+            event.reply('execute-command-stdout', [`stdout: ${data.toString('utf-8')}`]);
         });
-        // setTimeout(() => console.log(e), 2000)
+
+        projectProcess.stderr.on('data', (data) => {
+            console.error(`stderr: ${data}`);
+        });
+
+        projectProcess.on('close', (code) => {
+            console.log(`child process exited with code ${code}`);
+        });
     });
     ipcMain.on('open-folder', async (event) => {
         const { filePaths } = await dialog.showOpenDialog(mainWindow, {
@@ -90,9 +99,33 @@ const createWindow = () => {
         if (filePaths.length > 0) {
             const folderPath = filePaths[0];
             try {
-                const fileDirectory = await readDirectoryTree(filePaths[0]);
-                console.log(fileDirectory);
-                event.reply('folder-content', fileDirectory);
+                const entries = await nodefs.promises.readdir(folderPath);
+                const fileDirectory = [];
+                const folderDirectory = [];
+                for (const entry of entries) {
+                    const entryPath = path.join(folderPath, entry);
+                    // 获取文件或文件夹的状态
+                    const stats = await nodefs.promises.stat(entryPath);
+                    stats.isDirectory() ? folderDirectory.push({
+                        name: entry,
+                        type: 'directory',
+                        children: [],
+                        fullPath: entryPath
+                    }) : fileDirectory.push({
+                        name: entry,
+                        type: 'file',
+                        fullPath: entryPath
+                    });
+                }
+                fileDirectory.sort((x, y) => x.name < y.name ? -1 : (x.name > y.name ? 1 : 0));
+                folderDirectory.sort((x, y) => x.name < y.name ? -1 : (x.name > y.name ? 1 : 0));
+                // const fileDirectory = await readDirectoryTree(filePaths[0]);
+                const temp = folderPath.split(/\\|\//)
+                event.reply('folder-content', {
+                    name: temp[temp.length - 1],
+                    fillPath: folderPath,
+                    children: [...folderDirectory, ...fileDirectory]
+                });
             } catch (error) {
                 console.error('读取文件夹内容失败:', error);
                 event.reply('folder-content', []);
